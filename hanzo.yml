@@ -1,0 +1,15 @@
+# hanzoai/jwt — a Go library (ML-DSA-65 + classical JWT signing/verification).
+# It ships from a tag as a Go module; there is no image and nothing to deploy,
+# so this declares a gate and nothing else.
+#
+# Compile the whole module, then run its suite. jwt_test.go is the one that
+# matters: sign/verify round-trips and JWKS parsing are the entire product, and
+# a break there is silent — a token that verifies when it should not looks
+# exactly like one that verifies correctly.
+test:
+  - name: build-and-test
+    run: |
+      set -e
+      go build ./...
+      go vet ./...
+      go test -count=1 ./...
