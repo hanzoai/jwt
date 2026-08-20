@@ -34,6 +34,11 @@ type NumericDate = gojwt.NumericDate
 // NewNumericDate wraps a time as a JWT numeric date for the exp/nbf/iat claims.
 func NewNumericDate(t time.Time) *NumericDate { return gojwt.NewNumericDate(t) }
 
+// Program is the [Claims.Type] of a token minted for an application rather than
+// a person. A person's token carries no Type at all, so the two classes are told
+// apart by a value the issuer states, never by the shape of another claim.
+const Program = "application"
+
 // User is the identity projection embedded in every Hanzo access token: exactly
 // the fields a bearer needs to identify the principal and its home org. Owner is
 // the tenant/organization slug — the home-org anchor every downstream authorizes
@@ -61,6 +66,19 @@ type User struct {
 // inlines the registered claims.
 type Claims struct {
 	*User
+	// Type is the principal's identity CLASS: [Program] on a token the
+	// client_credentials grant minted, absent for a person. The issuer resolves
+	// it from the GRANT SHAPE, so only the issuer can say it and a caller cannot
+	// ask for it.
+	//
+	// It is here because the alternative is for each verifier to INFER the class,
+	// and every available inference is wrong somewhere. The subject's shape is
+	// the tempting one — a machine subject reads `owner/name` — but a person's
+	// subject takes that same form whenever the token names the account rather
+	// than its id, so the inference reads those people as machines. A verifier
+	// that puts the two classes in different places, as a custody path must,
+	// then files a person under a machine's name.
+	Type      string `json:"type,omitempty"`
 	TokenType string `json:"tokenType,omitempty"`
 	Nonce     string `json:"nonce,omitempty"`
 	Tag       string `json:"tag"`
