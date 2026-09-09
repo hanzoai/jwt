@@ -1,6 +1,6 @@
 module github.com/hanzoai/jwt
 
-go 1.26.4
+go 1.26.8
 
 require (
 	github.com/go-jose/go-jose/v4 v4.1.4
