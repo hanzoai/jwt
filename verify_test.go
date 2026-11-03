@@ -9,6 +9,8 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+
+	gojwt "github.com/golang-jwt/jwt/v5"
 	"strings"
 	"testing"
 	"time"
@@ -77,16 +79,24 @@ func TestParseRejectsAlgorithmMismatch(t *testing.T) {
 }
 
 // A kid that matches nothing in the set must fail closed, never fall back to
-// any key the set happens to hold.
+// any key the set happens to hold. The token is signed by the SAME key the set
+// carries, so only the kid lookup stands between it and a valid verification:
+// an implementation that ignored the kid and tried the sole key would pass it.
 func TestParseJWKSRejectsUnknownKid(t *testing.T) {
 	key := rsaKey(t)
 	jwks, err := jwt.BuildJWKS(key)
 	if err != nil {
 		t.Fatalf("build jwks: %v", err)
 	}
-	other := rsaKey(t)
-	other.Name = "attacker-kid"
-	raw, err := jwt.Sign(other, sampleClaims())
+	priv, err := gojwt.ParseRSAPrivateKeyFromPEM([]byte(key.PrivateKey))
+	if err != nil {
+		t.Fatalf("parse private key: %v", err)
+	}
+	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, gojwt.RegisteredClaims{
+		ExpiresAt: gojwt.NewNumericDate(time.Now().Add(time.Hour)),
+	})
+	tok.Header["kid"] = "attacker-kid"
+	raw, err := tok.SignedString(priv)
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
@@ -96,7 +106,8 @@ func TestParseJWKSRejectsUnknownKid(t *testing.T) {
 }
 
 // Without a kid there is nothing to select on, so a multi-key set must refuse
-// rather than guess.
+// rather than guess. The token's own key IS in the set, so an implementation
+// willing to guess would find it and verify; only the refusal fails the test.
 func TestParseJWKSNoKidMultiKeyRefuses(t *testing.T) {
 	anon := rsaKey(t)
 	anon.Name = ""
@@ -104,7 +115,7 @@ func TestParseJWKSNoKidMultiKeyRefuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
-	jwks, err := jwt.BuildJWKS(rsaKey(t), mldsaKey(t))
+	jwks, err := jwt.BuildJWKS(rsaKey(t), mldsaKey(t), anon)
 	if err != nil {
 		t.Fatalf("build jwks: %v", err)
 	}
